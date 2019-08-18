@@ -39,14 +39,15 @@ class Crawler(object):
         self.settings = settings.copy()
         self.spidercls.update_settings(self.settings)
 
-        d = dict(overridden_settings(self.settings))
-        logger.info("Overridden settings: %(settings)r", {'settings': d})
-
         self.signals = SignalManager(self)
         self.stats = load_object(self.settings['STATS_CLASS'])(self)
 
         handler = LogCounterHandler(self, level=self.settings.get('LOG_LEVEL'))
         logging.root.addHandler(handler)
+
+        d = dict(overridden_settings(self.settings))
+        logger.info("Overridden settings: %(settings)r", {'settings': d})
+
         if get_scrapy_root_handler() is not None:
             # scrapy root handler already installed: update it with new settings
             install_scrapy_root_handler(self.settings)
@@ -111,6 +112,8 @@ class Crawler(object):
 
     @defer.inlineCallbacks
     def stop(self):
+        """Starts a graceful stop of the crawler and returns a deferred that is
+        fired when the crawler is stopped."""
         if self.crawling:
             self.crawling = False
             yield defer.maybeDeferred(self.engine.stop)
@@ -330,14 +333,7 @@ class CrawlerProcess(CrawlerRunner):
 
 def _get_spider_loader(settings):
     """ Get SpiderLoader instance from settings """
-    if settings.get('SPIDER_MANAGER_CLASS'):
-        warnings.warn(
-            'SPIDER_MANAGER_CLASS option is deprecated. '
-            'Please use SPIDER_LOADER_CLASS.',
-            category=ScrapyDeprecationWarning, stacklevel=2
-        )
-    cls_path = settings.get('SPIDER_MANAGER_CLASS',
-                            settings.get('SPIDER_LOADER_CLASS'))
+    cls_path = settings.get('SPIDER_LOADER_CLASS')
     loader_cls = load_object(cls_path)
     try:
         verifyClass(ISpiderLoader, loader_cls)

@@ -99,6 +99,15 @@ Well-written patches should:
   the documentation changes in the same patch.  See `Documentation policies`_
   below.
 
+* if you're adding a private API, please add a regular expression to the
+  ``coverage_ignore_pyobjects`` variable of ``docs/conf.py`` to exclude the new
+  private API from documentation coverage checks.
+
+  To see if your private API is skipped properly, generate a documentation
+  coverage report as follows::
+
+      tox -e docs-coverage
+
 .. _submitting-patches:
 
 Submitting patches
@@ -162,6 +171,8 @@ Scrapy:
   See https://help.github.com/articles/setting-your-username-in-git/ for
   setup instructions.
 
+.. _documentation-policies:
+
 Documentation policies
 ======================
 
@@ -186,6 +197,8 @@ Tests
 
 Tests are implemented using the `Twisted unit-testing framework`_, running
 tests requires `tox`_.
+
+.. _running-tests:
 
 Running tests
 -------------

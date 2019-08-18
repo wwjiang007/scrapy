@@ -8,6 +8,7 @@ try:
 except ImportError:
     import mock
 
+from testfixtures import LogCapture
 from twisted.trial import unittest
 from twisted.protocols.policies import WrappingFactory
 from twisted.python.filepath import FilePath
@@ -24,7 +25,7 @@ from w3lib.url import path_to_file_uri
 from scrapy.core.downloader.handlers import DownloadHandlers
 from scrapy.core.downloader.handlers.datauri import DataURIDownloadHandler
 from scrapy.core.downloader.handlers.file import FileDownloadHandler
-from scrapy.core.downloader.handlers.http import HTTPDownloadHandler, HttpDownloadHandler
+from scrapy.core.downloader.handlers.http import HTTPDownloadHandler
 from scrapy.core.downloader.handlers.http10 import HTTP10DownloadHandler
 from scrapy.core.downloader.handlers.http11 import HTTP11DownloadHandler
 from scrapy.core.downloader.handlers.s3 import S3DownloadHandler
@@ -360,11 +361,6 @@ class HttpTestCase(unittest.TestCase):
         return d
 
 
-class DeprecatedHttpTestCase(HttpTestCase):
-    """HTTP 1.0 test case"""
-    download_handler_cls = HttpDownloadHandler
-
-
 class Http10TestCase(HttpTestCase):
     """HTTP 1.0 test case"""
     download_handler_cls = HTTP10DownloadHandler
@@ -503,6 +499,24 @@ class Http11TestCase(HttpTestCase):
 class Https11TestCase(Http11TestCase):
     scheme = 'https'
 
+    tls_log_message = 'SSL connection certificate: issuer "/C=IE/O=Scrapy/CN=localhost", subject "/C=IE/O=Scrapy/CN=localhost"'
+
+    @defer.inlineCallbacks
+    def test_tls_logging(self):
+        download_handler = self.download_handler_cls(Settings({
+            'DOWNLOADER_CLIENT_TLS_VERBOSE_LOGGING': True,
+        }))
+        try:
+            with LogCapture() as log_capture:
+                request = Request(self.getURL('file'))
+                d = download_handler.download_request(request, Spider('foo'))
+                d.addCallback(lambda r: r.body)
+                d.addCallback(self.assertEqual, b"0123456789")
+                yield d
+                log_capture.check_present(('scrapy.core.downloader.tls', 'DEBUG', self.tls_log_message))
+        finally:
+            yield download_handler.close()
+
 
 class Https11WrongHostnameTestCase(Http11TestCase):
     scheme = 'https'
@@ -523,6 +537,7 @@ class Https11InvalidDNSId(Https11TestCase):
         super(Https11InvalidDNSId, self).setUp()
         self.host = '127.0.0.1'
 
+
 class Https11InvalidDNSPattern(Https11TestCase):
     """Connect to HTTPS hosts where the certificate are issued to an ip instead of a domain."""
 
@@ -534,6 +549,7 @@ class Https11InvalidDNSPattern(Https11TestCase):
             from service_identity.exceptions import CertificateError
         except ImportError:
             raise unittest.SkipTest("cryptography lib is too old")
+        self.tls_log_message = 'SSL connection certificate: issuer "/C=IE/O=Scrapy/CN=127.0.0.1", subject "/C=IE/O=Scrapy/CN=127.0.0.1"'
         super(Https11InvalidDNSPattern, self).setUp()
 
 
@@ -654,11 +670,6 @@ class HttpProxyTestCase(unittest.TestCase):
 
         request = Request(self.getURL('path/to/resource'))
         return self.download_request(request, Spider('foo')).addCallback(_test)
-
-
-class DeprecatedHttpProxyTestCase(unittest.TestCase):
-    """Old deprecated reference to http10 downloader handler"""
-    download_handler_cls = HttpDownloadHandler
 
 
 class Http10ProxyTestCase(HttpProxyTestCase):
